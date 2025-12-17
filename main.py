@@ -3,10 +3,10 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-
+from config import CHROMEDRIVER_PATH
 # selenium accesses elements using locators like By.ID, By.NAME, By.CSS_SELECTOR, By.XPATH, etc.
 
-service = Service(r"C:\Users\Jacob\OneDrive\Desktop\tools\chromedriver-win64\chromedriver.exe")
+service = Service(CHROMEDRIVER_PATH)
 driver = webdriver.Chrome(service=service)
 # url = input("paste url here (must be unlisted or public): ")
 url = "https://www.google.com"
