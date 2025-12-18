@@ -4,10 +4,14 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from config import CHROMEDRIVER_PATH
+import requests
 # selenium accesses elements using locators like By.ID, By.NAME, By.CSS_SELECTOR, By.XPATH, etc.
 
 service = Service(CHROMEDRIVER_PATH)
 driver = webdriver.Chrome(service=service)
+
+api = "https://api.scryfall.com/cards/collection"
+
 # url = input("paste url here (must be unlisted or public): ")
 url = "https://www.google.com"
 url2 = "https://moxfield.com/"
@@ -31,6 +35,125 @@ for card in cards:
         if full_name not in card_list:
             card_list.append(full_name)
 
-print(card_list)
+
+identifiers = []
+
+for name in card_list:
+    identifiers.append({"name": name}) 
+
+def chunked(lst, n):
+    for i in range(0, len(lst), n):
+        yield lst[i:i+n]
+
+all_cards = []
+for chunk in chunked(identifiers, 75):
+    payload = {"identifiers": chunk}
+    try:
+        response = requests.post(api, json=payload)
+    except requests.RequestException as exc:
+        print("Network error while contacting Scryfall:", exc)
+        raise
+
+    if response.status_code != 200:
+        print(f"Scryfall API error: {response.status_code} - {response.text}")
+        response.raise_for_status()
+
+    data = response.json()
+    if "data" not in data:
+        print("Unexpected API response:", data)
+        raise KeyError("'data' missing in Scryfall response")
+
+    all_cards.extend(data["data"])
+
+
+# categories are: ramp, card_adv, disruption, board wipes, part of plan, other
+# rough categorization based on oracle text keywords
+ramp = [
+    "add",
+    "adds",
+    "mana",
+    "treasure",
+    "create a treasure",
+    "search your library for a land",
+    "put a land onto the battlefield",
+    "untap target land",
+    "untap up to"
+]
+
+card_adv = [
+    "draw a card",
+    "draw two cards",
+    "draw three cards",
+    "draw X cards",
+    "you may draw"
+]
+
+disruption = [
+    "counter target",
+    "counter unless",
+    "copy target spell",
+    "destroy target",
+    "exile target",
+    "sacrifice",
+    "return target to its owner's hand",
+    "tap target",
+    "doesn't untap",
+    "exile all cards"
+]
+
+board_wipes = [
+    "destroy all",
+    "exile all",
+    "each creature",
+    "all creatures get damage to each creature",
+    "deals damage to all"
+]
+
+# Print collected card data and tag them based on oracle text
+import re
+
+def _normalize_text(s: str) -> str:
+    """Lowercase and replace non-alphanumeric characters with spaces for robust matching."""
+    if not s:
+        return ""
+    s = s.lower()
+    s = re.sub(r'[^a-z0-9 ]+', ' ', s)
+    s = re.sub(r'\s+', ' ', s).strip()
+    return s
+
+# map category names to their keyword lists
+categories = {
+    "ramp": ramp,
+    "card_draw": card_adv,
+    "disruption": disruption,
+    "board_wipes": board_wipes,
+}
+
+for card in all_cards:
+    oracle = card.get("oracle_text") or ""
+    norm_oracle = _normalize_text(oracle)
+
+    tags = []
+    matches = {}  # record which keywords matched per category
+    for cat_name, keywords in categories.items():
+        matched_kw = []
+        for kw in keywords:
+            if not kw:
+                continue
+            if _normalize_text(kw) in norm_oracle:
+                matched_kw.append(kw)
+        if matched_kw:
+            tags.append(cat_name)
+            matches[cat_name] = matched_kw
+
+    print({
+        "name": card["name"],
+        #"type_line": card.get("type_line"),
+        #"oracle_text": oracle,
+        "tags": tags,
+        "matches": matches,
+    })
+
+
 input("Press Enter to close the browser..." )
 driver.quit()
