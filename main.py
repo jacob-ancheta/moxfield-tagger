@@ -71,9 +71,6 @@ for chunk in chunked(identifiers, 75):
 ramp = [
     "add",
     "adds",
-    "mana",
-    "treasure",
-    "create a treasure",
     "search your library for a land",
     "put a land onto the battlefield",
     "untap target land",
@@ -85,7 +82,8 @@ card_adv = [
     "draw two cards",
     "draw three cards",
     "draw X cards",
-    "you may draw"
+    "you may draw",
+    "draws"
 ]
 
 disruption = [
@@ -94,11 +92,14 @@ disruption = [
     "copy target spell",
     "destroy target",
     "exile target",
-    "sacrifice",
     "return target to its owner's hand",
     "tap target",
     "doesn't untap",
-    "exile all cards"
+    "exile all cards",
+    "change the target",
+    "choose new targets",
+    "exile any number of target",
+    "return target"
 ]
 
 board_wipes = [
@@ -112,8 +113,8 @@ board_wipes = [
 # Print collected card data and tag them based on oracle text
 import re
 
-def _normalize_text(s: str) -> str:
-    """Lowercase and replace non-alphanumeric characters with spaces for robust matching."""
+def normalize_text(s: str) -> str:
+    """lowercase and replace non-alphanumeric characters with spaces for robust matching."""
     if not s:
         return ""
     s = s.lower()
@@ -131,7 +132,9 @@ categories = {
 
 for card in all_cards:
     oracle = card.get("oracle_text") or ""
-    norm_oracle = _normalize_text(oracle)
+    card_type = card.get("type_line") or ""
+    norm_oracle = normalize_text(oracle)
+    norm_type = normalize_text(card_type)
 
     tags = []
     matches = {}  # record which keywords matched per category
@@ -140,9 +143,14 @@ for card in all_cards:
         for kw in keywords:
             if not kw:
                 continue
-            if _normalize_text(kw) in norm_oracle:
+            norm_kw = normalize_text(kw)
+            if not norm_kw:
+                continue
+            # match whole words/phrases only (avoid substrings like 'add' matching 'additional')
+            pattern = r'\b' + re.escape(norm_kw) + r'\b'
+            if re.search(pattern, norm_oracle):
                 matched_kw.append(kw)
-        if matched_kw:
+        if matched_kw and "land" not in norm_type:
             tags.append(cat_name)
             matches[cat_name] = matched_kw
 
