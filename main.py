@@ -5,6 +5,8 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from config import CHROMEDRIVER_PATH
 import requests
+import categories
+import re
 # selenium accesses elements using locators like By.ID, By.NAME, By.CSS_SELECTOR, By.XPATH, etc.
 
 service = Service(CHROMEDRIVER_PATH)
@@ -65,54 +67,6 @@ for chunk in chunked(identifiers, 75):
 
     all_cards.extend(data["data"])
 
-
-# categories are: ramp, card_adv, disruption, board wipes, part of plan, other
-# rough categorization based on oracle text keywords
-ramp = [
-    "add",
-    "adds",
-    "search your library for a land",
-    "put a land onto the battlefield",
-    "untap target land",
-    "untap up to"
-]
-
-card_adv = [
-    "draw a card",
-    "draw two cards",
-    "draw three cards",
-    "draw X cards",
-    "you may draw",
-    "draws"
-]
-
-disruption = [
-    "counter target",
-    "counter unless",
-    "copy target spell",
-    "destroy target",
-    "exile target",
-    "return target to its owner's hand",
-    "tap target",
-    "doesn't untap",
-    "exile all cards",
-    "change the target",
-    "choose new targets",
-    "exile any number of target",
-    "return target"
-]
-
-board_wipes = [
-    "destroy all",
-    "exile all",
-    "each creature",
-    "all creatures get damage to each creature",
-    "deals damage to all"
-]
-
-# Print collected card data and tag them based on oracle text
-import re
-
 def normalize_text(s: str) -> str:
     """lowercase and replace non-alphanumeric characters with spaces for robust matching."""
     if not s:
@@ -124,10 +78,13 @@ def normalize_text(s: str) -> str:
 
 # map category names to their keyword lists
 categories = {
-    "ramp": ramp,
-    "card_draw": card_adv,
-    "disruption": disruption,
-    "board_wipes": board_wipes,
+    "ramp": categories.ramp,
+    "card_draw": categories.card_draw,
+    "disruption": categories.disruption,
+    "board_wipes": categories.board_wipe,
+    "protection": categories.protection,
+    "tutors": categories.tutors,
+    "recursion": categories.recursion,
 }
 
 for card in all_cards:
@@ -137,29 +94,21 @@ for card in all_cards:
     norm_type = normalize_text(card_type)
 
     tags = []
-    matches = {}  # record which keywords matched per category
-    for cat_name, keywords in categories.items():
-        matched_kw = []
-        for kw in keywords:
-            if not kw:
-                continue
-            norm_kw = normalize_text(kw)
-            if not norm_kw:
-                continue
-            # match whole words/phrases only (avoid substrings like 'add' matching 'additional')
-            pattern = r'\b' + re.escape(norm_kw) + r'\b'
-            if re.search(pattern, norm_oracle):
-                matched_kw.append(kw)
-        if matched_kw and "land" not in norm_type:
+    matches = {}  # record category -> score
+    for cat_name, classifier in categories.items():
+        try:
+            score = classifier(card)
+        except Exception:
+            score = 0.0
+        if score and score > 0 and "land" not in norm_type:
             tags.append(cat_name)
-            matches[cat_name] = matched_kw
+            matches[cat_name] = float(round(score, 2))
 
+    # print card with category scores
     print({
         "name": card["name"],
-        #"type_line": card.get("type_line"),
-        #"oracle_text": oracle,
         "tags": tags,
-        "matches": matches,
+        "category_scores": matches,
     })
 
 
