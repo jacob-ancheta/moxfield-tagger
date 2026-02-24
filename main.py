@@ -100,7 +100,10 @@ for card in all_cards:
             score = classifier(card)
         except Exception:
             score = 0.0
-        if score and score > 0 and "land" not in norm_type:
+        if score and score > 0:
+            # don't tag lands as ramp, but allow other categories (e.g. disruption) on lands
+            if (cat_name == "ramp" or cat_name == "tutors") and "land" in norm_type:
+                continue
             tags.append(cat_name)
             matches[cat_name] = float(round(score, 2))
 
