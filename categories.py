@@ -148,9 +148,10 @@ def board_wipe(card):
         score += 0.8
 
     # all permanents
-    if re.search(r"destroy\s+all\s+permanents", oracle) or re.search(r"exile\s+all\s+permanents", oracle):
+    # general mass destroy/exile
+    if re.search(r"(destroy|exile)\s+all\s+.*(creatures|permanents)", oracle):
         score += 1.0
-
+        
     return min(round(score, 2), 1.0)
 
 def protection(card):
