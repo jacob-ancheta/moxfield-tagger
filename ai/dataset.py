@@ -1,91 +1,56 @@
-import sys, os
-from pathlib import Path
 import json
+import pandas as pd
+import sys 
+from pathlib import Path
 
 sys.path.append(str(Path(__file__).parent.parent.resolve()))
 
-import categories
 from categories import ramp, card_draw, disruption, board_wipe, protection, tutors, recursion
 
 
-BASE_DIR = os.path.dirname(__file__) 
-json_path = os.path.join(BASE_DIR, "cards.json")
-def get_scores(card):
-    return {
+def classify_with_rules(card, threshold=0.7):
+    scores = {
         "ramp": ramp(card),
         "card_draw": card_draw(card),
         "disruption": disruption(card),
-        "board_wipes": board_wipe(card),
+        "board_wipe": board_wipe(card),
         "protection": protection(card),
         "tutors": tutors(card),
-        "recursion": recursion(card)
+        "recursion": recursion(card),
     }
 
-LABELS = [
-    "ramp",
-    "card_draw",
-    "disruption",
-    "board_wipes",
-    "protection",
-    "tutors",
-    "recursion"
-]
+    tags = [k for k, v in scores.items() if v >= threshold]
+    max_conf = max(scores.values()) if scores else 0
 
-THRESHOLD = 0.7
+    return tags, max_conf, scores
 
-def scores_to_vector(score_dict):
-    return [
-        1 if score_dict[label] >= THRESHOLD else 0
-        for label in LABELS
-    ]
+def bootstrap_training_data():
+    base_dir = Path(__file__).parent
+    cards_path = base_dir / "cards.json"
 
-def build_text(card):
-    oracle = card.get("oracle_text") or ""
-    type_line = card.get("type_line") or ""
-    return (oracle + " " + type_line).strip()
-
-
-def is_valid_card(card):
-    if not card.get("oracle_text"):
-        return False
-    if card.get("layout") in ["token", "art_series"]:
-        return False
-    if card.get("digital"):
-        return False
-    return True
-
-
-def main():
-    with open("cards.json", "r", encoding="utf-8") as f:
+    with open(cards_path, "r", encoding="utf-8") as f:
         cards = json.load(f)
 
-    output_file = open("train.jsonl", "w", encoding="utf-8")
-
-    kept = 0
+    rows = []
 
     for card in cards:
-        if not is_valid_card(card):
-            continue
+        tags, confidence, _ = classify_with_rules(card, threshold=0.7)
 
-        scores = categories.get_scores(card)
-        label_vector = scores_to_vector(scores)
+        if tags:  # only high confidence cards
+            if "board_wipe" in tags:
+                tags = ["board_wipe"]
+            rows.append({
+                "oracle_text": card.get("oracle_text", ""),
+                "type_line": card.get("type_line", ""),
+                "tags": ",".join(tags)
+            })
 
-        # Skip cards with no tags (optional but recommended)
-        if sum(label_vector) == 0:
-            continue
+    df = pd.DataFrame(rows)
+    out_path = base_dir / "training_data.csv"
+    df.to_csv(out_path, index=False)
 
-        example = {
-            "text": build_text(card),
-            "labels": label_vector
-        }
-
-        output_file.write(json.dumps(example) + "\n")
-        kept += 1
-
-    output_file.close()
-
-    print(f"Saved {kept} labeled cards to train.jsonl")
+    print(f"Bootstrapped {len(df)} examples. Wrote {out_path}")
 
 
 if __name__ == "__main__":
-    main()
+    bootstrap_training_data()
