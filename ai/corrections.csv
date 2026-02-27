@@ -1,0 +1,10 @@
+oracle_text,type_line,tagsYou may have this land enter tapped as a copy of any land on the battlefield.,Land,na
+({T}: Add {U}.),Basic Land — Island,na
+Unearth {B} ({B}: Return this card from your graveyard to the battlefield. It gains haste. Exile it at the beginning of the next end step or if it would leave the battlefield. Unearth only as a sorcery.),Creature — Zombie,na
+"When you planeswalk to Cliffside Market and at the beginning of your upkeep, you may exchange life totals with target player.
+Whenever chaos ensues, exchange control of two target permanents that share a card type.",Plane — Mercadia,disruption
+"At the beginning of your upkeep, put two descent counters on this enchantment. Then each player creates X Treasure tokens and this enchantment deals X damage to each player, where X is the number of descent counters on this enchantment.",Enchantment,ramp
+"When this creature leaves the battlefield, you gain 2 life.
+Unearth {3}{W} ({3}{W}: Return this card from your graveyard to the battlefield. It gains haste. Exile it at the beginning of the next end step or if it would leave the battlefield. Unearth only as a sorcery.)",Artifact Creature — Construct,na
+({T}: Add {R}.),Basic Land — Mountain,na
+Untap all creatures you control and all creatures target opponent controls. You and that opponent each gain control of all creatures the other controls until end of turn. Those creatures gain haste until end of turn.,Instant,disruption
