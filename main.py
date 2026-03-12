@@ -7,7 +7,40 @@ from config import CHROMEDRIVER_PATH
 import requests
 import categories
 import re
+import joblib
+from pathlib import Path
+from ai.corrections import save_correction
 # selenium accesses elements using locators like By.ID, By.NAME, By.CSS_SELECTOR, By.XPATH, etc.
+
+# Load ML model
+base_dir = Path(__file__).parent / "ai"
+model_path = base_dir / "ml_model.pkl"
+
+pipeline, mlb = joblib.load(model_path)
+
+def predict_with_ml(card):
+    text = (card.get("oracle_text", "") + " " +
+            card.get("type_line", ""))
+
+    probs = pipeline.predict_proba([text])[0]
+
+    tags = []
+    confidences = []
+    norm_type = normalize_text(card.get("type_line", ""))
+
+    for tag, prob in zip(mlb.classes_, probs):
+        if isinstance(tag, str) and tag.startswith("["):
+            tag = tag.strip("[]'\"")
+        if prob >= 0.5:
+            if (tag == "ramp" or tag == "tutors") and "land" in norm_type:
+                continue
+            tags.append(tag)
+            confidences.append(prob)
+
+    max_conf = max(probs) if len(probs) > 0 else 0
+    return tags, max_conf
+
+
 
 service = Service(CHROMEDRIVER_PATH)
 driver = webdriver.Chrome(service=service)
@@ -15,10 +48,9 @@ driver = webdriver.Chrome(service=service)
 api = "https://api.scryfall.com/cards/collection"
 
 # url = input("paste url here (must be unlisted or public): ")
-url = "https://www.google.com"
-url2 = "https://moxfield.com/"
-url3 = "https://moxfield.com/decks/IAy9EmFU6E69zz-WGrsc-g"
-driver.get(str(url3))
+url_m = "https://moxfield.com/decks/IAy9EmFU6E69zz-WGrsc-g"
+url = input("Please paste Moxfield decklist page URL: ")
+driver.get(str(url))
 
 
 card_list = []
@@ -87,6 +119,8 @@ categories = {
     "recursion": categories.recursion,
 }
 
+results = []
+
 for card in all_cards:
     oracle = card.get("oracle_text") or ""
     card_type = card.get("type_line") or ""
@@ -95,6 +129,7 @@ for card in all_cards:
 
     tags = []
     matches = {}  # record category -> score
+    source = "rules"
     for cat_name, classifier in categories.items():
         try:
             score = classifier(card)
@@ -106,14 +141,86 @@ for card in all_cards:
                 continue
             tags.append(cat_name)
             matches[cat_name] = float(round(score, 2))
+    
+    use_ml = True
+
+    # if ANY category >= 0.7 we keep rule-based result
+    for score in matches.values():
+        if score >= 0.7:
+            use_ml = False
+            break
+
+    if use_ml:
+        ml_tags, ml_conf = predict_with_ml(card)
+
+        if ml_tags:
+            tags = ml_tags
+            matches = {"ml_model": float(round(ml_conf, 2))}
+            source = "ml"
 
     # print card with category scores
+    result = {
+    "name": card["name"],
+    "tags": tags,
+    "category_scores": matches,
+    "source": source,
+    "card": card
+}
+
+    results.append(result)
+
     print({
-        "name": card["name"],
-        "tags": tags,
-        "category_scores": matches,
+        "name": result["name"],
+        "tags": result["tags"],
+        "category_scores": result["category_scores"],
+        "source": result["source"]
     })
 
 
-input("Press Enter to close the browser..." )
+choice = input("\nWould you like to perform manual corrections? (Y/N): ").strip().lower()
+
+if choice == "y":
+
+    print("\nCards detected:\n")
+
+    for i, r in enumerate(results, start=1):
+        print(f"{i}. {r['name']} -> {r['tags']} ({r['source']})")
+
+    selection = input(
+        "\nEnter card numbers to correct (example: 1 2 4 5 12): "
+    ).strip()
+
+    if selection:
+
+        indices = [int(x) for x in selection.split() if x.isdigit()]
+
+        for idx in indices:
+
+            if idx < 1 or idx > len(results):
+                print(f"Invalid card number: {idx}")
+                continue
+
+            selected = results[idx - 1]
+
+            print("\n-------------------------")
+            print("Card:", selected["name"])
+            print("Current tags:", selected["tags"])
+
+            user_tags = input(
+                "Enter correct tags (comma separated) "
+                "(ramp, card_draw, disruption, board_wipes, protection, tutors, recursion, none): "
+            ).strip()
+
+            if not user_tags or user_tags.lower() in ["none", "na", "n/a"]:
+                print("Skipping correction.")
+                continue
+
+            correct_tags = [t.strip() for t in user_tags.split(",") if t.strip()]
+
+            if correct_tags:
+                save_correction(selected["card"], correct_tags)
+            else:
+                print("No valid tags entered. Skipping.")
+
+print("\nDone.")
 driver.quit()
