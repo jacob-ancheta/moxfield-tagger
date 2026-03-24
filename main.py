@@ -9,7 +9,7 @@ import categories
 import re
 import joblib
 from pathlib import Path
-from ai.corrections import save_correction
+from ai.corrections import save_correction, load_corrections
 # selenium accesses elements using locators like By.ID, By.NAME, By.CSS_SELECTOR, By.XPATH, etc.
 
 # Load ML model
@@ -108,6 +108,15 @@ def normalize_text(s: str) -> str:
     s = re.sub(r'\s+', ' ', s).strip()
     return s
 
+corrections_df = load_corrections()
+
+correction_lookup = {}
+
+if corrections_df is not None:
+    for _, row in corrections_df.iterrows():
+        key = normalize_text(row["text"])
+        correction_lookup[key] = row["tags"]
+
 # map category names to their keyword lists
 categories = {
     "ramp": categories.ramp,
@@ -122,6 +131,37 @@ categories = {
 results = []
 
 for card in all_cards:
+    # Check manual corrections first
+    lookup_key = normalize_text(
+        (card.get("oracle_text", "") or "") + " " +
+        (card.get("type_line", "") or "")
+    )
+
+    if lookup_key in correction_lookup:
+        tags = correction_lookup[lookup_key]
+        matches = {"manual": 1.0}
+        source = "manual"
+
+        result = {
+            "name": card["name"],
+            "tags": tags,
+            "category_scores": matches,
+            "source": source,
+            "card": card
+        }
+
+        results.append(result)
+
+        print({
+            "name": result["name"],
+            "tags": result["tags"],
+            "category_scores": result["category_scores"],
+            "source": result["source"]
+        })
+
+        continue
+    
+    # then go
     oracle = card.get("oracle_text") or ""
     card_type = card.get("type_line") or ""
     norm_oracle = normalize_text(oracle)
@@ -176,11 +216,20 @@ for card in all_cards:
         "source": result["source"]
     })
 
+category_totals = {}
+
+for r in results:
+    for tag in r["tags"]:
+        category_totals[tag] = category_totals.get(tag, 0) + 1
+
+print("\nCategory totals:\n")
+for cat, count in sorted(category_totals.items()):
+    print(f"{cat}: {count}")
 
 choice = input("\nWould you like to perform manual corrections? (Y/N): ").strip().lower()
 
 if choice == "y":
-
+    correction_count = 0
     print("\nCards detected:\n")
 
     for i, r in enumerate(results, start=1):
@@ -219,8 +268,19 @@ if choice == "y":
 
             if correct_tags:
                 save_correction(selected["card"], correct_tags)
+                correction_count += 1
             else:
                 print("No valid tags entered. Skipping.")
+    print(f"\nSaved {correction_count} corrections.")
 
 print("\nDone.")
+retrain = input("\nWould you like to retrain the model now? (Y/N): ").strip().lower()
+
+if retrain == "y":
+    print("\nRetraining model...\n")
+    try:
+        from ai.train_model import train_model
+        train_model()
+    except Exception as e:
+        print(f"Error during training: {e}")
 driver.quit()
