@@ -16,11 +16,37 @@ def train_model(csv_path=None):
     df = pd.read_csv(csv_path)
 
     corrections_df = load_corrections()
-    if corrections_df is not None:
-        df = pd.concat([df, corrections_df], ignore_index=True)
+    corrections_df = load_corrections()
 
-    df["combined"] = df["oracle_text"] + " " + df["type_line"]
-    df["tags"] = df["tags"].apply(lambda x: x.split(","))
+    if corrections_df is not None:
+
+        # split text back into something usable
+        corrections_df["combined"] = corrections_df["text"]
+        corrections_df["tags"] = corrections_df["tags"]
+
+        # weight corrections higher 
+        corrections_df = pd.concat([corrections_df] * 3, ignore_index=True)
+
+        # build main df combined column first
+        df["combined"] = df["oracle_text"] + " " + df["type_line"]
+
+        # merge ONLY needed columns
+        df = pd.concat([
+            df[["combined", "tags"]],
+            corrections_df[["combined", "tags"]]
+        ], ignore_index=True)
+
+    else:
+        df["combined"] = df["oracle_text"] + " " + df["type_line"]
+
+    def clean_tags(x):
+        if isinstance(x, list):
+            return x
+        if isinstance(x, str):
+            return [t.strip() for t in x.split(",") if t.strip()]
+        return []
+
+    df["tags"] = df["tags"].apply(clean_tags)
 
     df = df[df["tags"].notna()]  # remove NaN rows
 
