@@ -11,6 +11,8 @@ import requests
 BASE_DIR = Path(__file__).resolve().parent
 DEFAULT_MODEL_PATH = BASE_DIR / "ai" / "ml_model.pkl"
 
+
+# caching the Scryfall image fetch to avoid redundant calls
 @st.cache_data
 def get_card_image(name):
     try:
@@ -83,24 +85,31 @@ if url and st.button("Tag Deck"):
 results = st.session_state.results
 
 if results:
-    # -----------------
-    # Category totals + dropdowns
-    # -----------------
+    
+    # category totals + dropdowns ------------------------------
     st.subheader("Category Totals")
 
-    # Build mapping: category -> cards
+    # build category mapping: category -> cards
     category_map = {}
 
     for r in results:
+        r["tags"] = [t for t in r["tags"] if t.lower() != "none"]
         for tag in r["tags"]:
             if tag not in category_map:
                 category_map[tag] = []
             category_map[tag].append(r)
+    
+    # untagged category
+    untagged_cards = [r for r in results if not r["tags"]]
 
-    # Display
+    if untagged_cards:
+        category_map["Untagged"] = untagged_cards
+
+    # display
+    all_categories = sorted(list({tag for r in results for tag in r["tags"]}))
     for cat, cards in sorted(category_map.items()):
 
-        # Header with count
+        # header with count
         with st.expander(f"{cat} ({len(cards)})"):
 
             for r in cards:
@@ -108,58 +117,34 @@ if results:
 
                 with col1:
                     try:
-                        # Fetch card image from Scryfall
+                        # fetch card image from Scryfall
                         img = get_card_image(r["name"])
                         if img:
                             st.image(img)
-
-                        if "image_uris" in data:
-                            st.image(data["image_uris"]["small"])
-                        elif "card_faces" in data:
-                            st.image(data["card_faces"][0]["image_uris"]["small"])
                     except:
                         st.write("No image")
 
                 with col2:
                     st.write(f"**{r['name']}**")
-                    st.write(", ".join(r["tags"]))
+                    st.write("Current:", ", ".join(r["tags"]))
 
-    # -----------------
-    # Manual corrections
-    # -----------------
-    st.subheader("Manual Corrections")
+                    st.markdown("**Manually Tag:**")
 
-    cards_no_manual = [r for r in results if r["source"] != "manual"]
-    card_names = [r["name"] for r in cards_no_manual]
+                    selected = st.multiselect(
+                        "Select tags",
+                        options=all_categories,
+                        default=r["tags"],
+                        key=f"tags_{r['name']}_{cat}"
+                    )
 
-    selected_cards = st.multiselect(
-        "Select cards to correct",
-        card_names
-    )
+                    if st.button(f"Apply to {r['name']}", key=f"btn_{r['name']}_{cat}"):
+                        try:
+                            save_correction(r["card"], selected)
+                            st.success(f"Saved correction for {r['name']}")
+                        except Exception as e:
+                            st.error(f"Error: {e}")
 
-    for sel_name in selected_cards:
-        st.text_input(
-            f"Tags for {sel_name}",
-            key=f"input_{sel_name}"
-        )
-
-    if selected_cards and st.button("Save All Corrections"):
-        saved = 0
-
-        for sel_name in selected_cards:
-            tags_str = st.session_state.get(f"input_{sel_name}", "")
-            correct_tags = [t.strip() for t in tags_str.split(",") if t.strip()]
-
-            if correct_tags:
-                card_obj = next(r["card"] for r in cards_no_manual if r["name"] == sel_name)
-                save_correction(card_obj, correct_tags)
-                saved += 1
-
-        st.success(f"Saved {saved} corrections")
-
-    # -----------------
-    # Retrain
-    # -----------------
+    # retrain ------------------------------
     st.subheader("Retrain Model")
 
     if st.button("Retrain Model"):
