@@ -6,36 +6,35 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.multiclass import OneVsRestClassifier
 from sklearn.pipeline import Pipeline
 from pathlib import Path
-from corrections import load_corrections
+from ai.corrections import load_corrections
+import sys
+from pathlib import Path
 
-def train_model(csv_path=None):
+sys.path.append(str(Path(__file__).resolve().parent.parent))
+
+def train_model(csv_path=None, save_path=None):
     base_dir = Path(__file__).parent
+
     if csv_path is None:
         csv_path = base_dir / "training_data.csv"
 
     df = pd.read_csv(csv_path)
 
     corrections_df = load_corrections()
-    corrections_df = load_corrections()
 
-    if corrections_df is not None:
-
-        # split text back into something usable
+    if corrections_df is not None and not corrections_df.empty:
         corrections_df["combined"] = corrections_df["text"]
         corrections_df["tags"] = corrections_df["tags"]
 
-        # weight corrections higher 
+        # weight corrections higher
         corrections_df = pd.concat([corrections_df] * 3, ignore_index=True)
 
-        # build main df combined column first
         df["combined"] = df["oracle_text"] + " " + df["type_line"]
 
-        # merge ONLY needed columns
         df = pd.concat([
             df[["combined", "tags"]],
             corrections_df[["combined", "tags"]]
         ], ignore_index=True)
-
     else:
         df["combined"] = df["oracle_text"] + " " + df["type_line"]
 
@@ -47,28 +46,25 @@ def train_model(csv_path=None):
         return []
 
     df["tags"] = df["tags"].apply(clean_tags)
-
-    df = df[df["tags"].notna()]  # remove NaN rows
-
-    df["tags"] = df["tags"].apply(
-        lambda x: [t.strip() for t in str(x).split(",") if t.strip()]
-    )
-
-    df = df[df["tags"].map(len) > 0]  # remove empty tag rows
+    df = df[df["tags"].map(len) > 0]
 
     mlb = MultiLabelBinarizer()
     y = mlb.fit_transform(df["tags"])
 
     pipeline = Pipeline([
         ("tfidf", TfidfVectorizer(stop_words="english", ngram_range=(1, 2))),
-        ("clf", OneVsRestClassifier(LogisticRegression(max_iter=1000, class_weight="balanced")))
+        ("clf", OneVsRestClassifier(
+            LogisticRegression(max_iter=1000, class_weight="balanced")
+        ))
     ])
 
     pipeline.fit(df["combined"], y)
 
-    out_path = base_dir / "ml_model.pkl"
-    joblib.dump((pipeline, mlb), out_path)
-    print(f"Trained model and wrote {out_path}")
+    # ✅ optional save to disk
+    if save_path:
+        joblib.dump((pipeline, mlb), save_path)
+
+    return pipeline, mlb
 
 if __name__ == "__main__":
     print("Starting training...")

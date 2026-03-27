@@ -27,14 +27,19 @@ def save_correction(card, correct_tags):
 
     print("Correction saved.")
 
+def safe_split(x):
+        if isinstance(x, str):
+            return [t.strip() for t in x.split(",") if t.strip()]
+        return []
 
 def load_corrections():
     if CORRECTIONS_FILE.exists():
         df = pd.read_csv(CORRECTIONS_FILE)
 
         df["text"] = df["oracle_text"].fillna("") + " " + df["type_line"].fillna("")
-        df["tags"] = df["tags"].apply(lambda x: x.split(","))
+        df["tags"] = df["tags"].apply(safe_split)
 
         return df[["text", "tags"]]
 
     return None
+
