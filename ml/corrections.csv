@@ -1,10 +1,7 @@
-oracle_text,type_line,tagsYou may have this land enter tapped as a copy of any land on the battlefield.,Land,na
-({T}: Add {U}.),Basic Land — Island,na
-Unearth {B} ({B}: Return this card from your graveyard to the battlefield. It gains haste. Exile it at the beginning of the next end step or if it would leave the battlefield. Unearth only as a sorcery.),Creature — Zombie,na
-"When you planeswalk to Cliffside Market and at the beginning of your upkeep, you may exchange life totals with target player.
-Whenever chaos ensues, exchange control of two target permanents that share a card type.",Plane — Mercadia,disruption
-"At the beginning of your upkeep, put two descent counters on this enchantment. Then each player creates X Treasure tokens and this enchantment deals X damage to each player, where X is the number of descent counters on this enchantment.",Enchantment,ramp
-"When this creature leaves the battlefield, you gain 2 life.
-Unearth {3}{W} ({3}{W}: Return this card from your graveyard to the battlefield. It gains haste. Exile it at the beginning of the next end step or if it would leave the battlefield. Unearth only as a sorcery.)",Artifact Creature — Construct,na
-({T}: Add {R}.),Basic Land — Mountain,na
-Untap all creatures you control and all creatures target opponent controls. You and that opponent each gain control of all creatures the other controls until end of turn. Those creatures gain haste until end of turn.,Instant,disruption
+oracle_text,type_line,tags
+"Prowess (Whenever you cast a noncreature spell, this creature gets +1/+1 until end of turn.) If an ability of a Shaman or another Wizard you control triggers, that ability triggers an additional time.",Creature — Human Wizard,
+"This artifact doesn't untap during your untap step. At the beginning of your upkeep, you may pay {4}. If you do, untap this artifact. At the beginning of your draw step, if this artifact is tapped, it deals 1 damage to you. {T}: Add {C}{C}{C}.",Artifact,ramp
+"{0}: Add X mana in any combination of {U} and/or {R}, where X is Vivi Ornitier's power. Activate only during your turn and only once each turn. Whenever you cast a noncreature spell, put a +1/+1 counter on Vivi Ornitier and it deals 1 damage to each opponent.",Legendary Creature — Wizard,ramp
+"Avoidance — Whenever you cast a noncreature spell, exile up to one target nonland permanent you control, then return that card to the battlefield under its owner's control.",Creature — Cat Beast,
+"As an additional cost to cast this spell, sacrifice a creature. Search your library for a card, put that card into your hand, then shuffle.",Sorcery,tutors
+"Spree (Choose one or more additional costs.) + {1} — Search your library for a card, put it into your graveyard, then shuffle. + {2} — Return up to two creature cards with total mana value 4 or less from your graveyard to the battlefield.",Sorcery,tutors
