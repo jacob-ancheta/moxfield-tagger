@@ -9,7 +9,7 @@ import categories as cat_module
 import re
 import joblib
 from pathlib import Path
-from ai.corrections import save_correction, load_corrections
+from ml.corrections import save_correction, load_corrections
 
 
 
@@ -29,7 +29,7 @@ def chunked(lst, n):
 
 
 # LOAD MODEL + CORRECTIONS -----------------------------
-base_dir = Path(__file__).parent / "ai"
+base_dir = Path(__file__).parent / "ml"
 model_path = base_dir / "ml_model.pkl"
 
 pipeline, mlb = joblib.load(model_path)
@@ -54,14 +54,29 @@ def predict_with_ml(card):
     norm_type = normalize_text(card.get("type_line", ""))
 
     for tag, prob in zip(mlb.classes_, probs):
-        if isinstance(tag, str) and tag.startswith("["):
-            tag = tag.strip("[]'\"")
+        # clean the tag
+        if isinstance(tag, str):
+            # Remove all brackets, quotes, and extra whitespace
+            tag = tag.replace("[", "").replace("]", "").replace("'", "").replace('"', "")
+            tag = tag.strip()
+            
+            # skip empty tags
+            if not tag:
+                continue
 
         if prob >= 0.5:
             if (tag == "ramp" or tag == "tutors") and "land" in norm_type:
                 continue
-            tags.append(tag)
+            # only add if tag is a valid category
+            valid_categories = ["ramp", "card_draw", "disruption", "board_wipes", 
+                               "protection", "tutors", "recursion"]
+            if tag in valid_categories:
+                tags.append(tag)
 
+    # remove duplicates while preserving order
+    seen = set()
+    tags = [x for x in tags if not (x in seen or seen.add(x))]
+    
     max_conf = max(probs) if len(probs) > 0 else 0
     return tags, float(max_conf)
 
@@ -170,6 +185,12 @@ def tag_deck(url):
             "source": source,
             "card": card
         })
+        # In tag_deck function, add this debug print
+    if any(']' in tag for tag in tags):
+        print(f"Found weird tag in card {card['name']}: {tags}")
+        print(f"Source: {source}")
+        print(f"Matches: {matches}")
+        
 
     driver.quit()
     return results

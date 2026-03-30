@@ -1,7 +1,7 @@
 import streamlit as st
 from main import tag_deck
-from ai.corrections import save_correction
-from ai.train_model import train_model
+from ml.corrections import save_correction
+from ml.train_model import train_model
 from collections import Counter
 import io
 import joblib
@@ -9,7 +9,7 @@ from pathlib import Path
 import requests
 
 BASE_DIR = Path(__file__).resolve().parent
-DEFAULT_MODEL_PATH = BASE_DIR / "ai" / "ml_model.pkl"
+DEFAULT_MODEL_PATH = BASE_DIR / "ml" / "ml_model.pkl"
 
 
 # caching the Scryfall image fetch to avoid redundant calls
@@ -44,8 +44,6 @@ if "model" not in st.session_state:
 
 st.title("Moxfield Deck Tagger")
 
-
-
 # session state
 if "model" not in st.session_state:
     st.session_state.model = None
@@ -53,6 +51,13 @@ if "model" not in st.session_state:
     st.session_state.model_name = "None"
 if "results" not in st.session_state:
     st.session_state.results = None
+if "loading" not in st.session_state:
+    st.session_state.loading = False
+if "rendering_complete" not in st.session_state:
+    st.session_state.rendering_complete = False
+# Initialize url in session state if not present
+if "url" not in st.session_state:
+    st.session_state.url = ""
 
 st.subheader("Model Selection")
 
@@ -74,20 +79,63 @@ if uploaded_model is not None:
 
         st.success(f"Loaded model: {uploaded_model.name}")
 
+        st.rerun()
+
     except Exception as e:
         st.error(f"Failed to load model: {e}")
 
-url = st.text_input("Enter Moxfield deck URL:")
+url = st.text_input("Enter Moxfield deck URL:", key="url")
 
-if url and st.button("Tag Deck"):
-    st.session_state.results = tag_deck(url)
+# Fix: Check if URL has content, not just if it exists in session state
+tag_clicked = st.button(
+    "Tag Deck",
+    disabled=(not st.session_state.get("url", "").strip()) or st.session_state.get("loading", False)
+)
+
+if tag_clicked:
+    st.session_state.loading = True
+    st.session_state.results = None
+    st.session_state.rendering_complete = False
+    st.rerun()
+
+# Show loading spinner while results are being fetched OR rendered
+if st.session_state.loading:
+    with st.spinner("Loading..."):
+        # Only fetch results if we don't have them yet
+        if st.session_state.results is None:
+            st.session_state.results = tag_deck(url)
+        
+        # After fetching, set rendering to complete
+        if not st.session_state.rendering_complete:
+            # Pre-fetch images for all cards
+            if st.session_state.results:
+                image_cache = {}
+                for r in st.session_state.results:
+                    name = r["name"]
+                    if name not in image_cache:
+                        image_cache[name] = get_card_image(name)
+                st.session_state.image_cache = image_cache
+            st.session_state.rendering_complete = True
+    
+    # Clear loading state after everything is done
+    if st.session_state.rendering_complete:
+        st.session_state.loading = False
+        st.rerun()
 
 results = st.session_state.results
 
-if results:
+if results and st.session_state.rendering_complete:
+
+    # Use cached images if available
+    image_cache = getattr(st.session_state, 'image_cache', {})
     
-    # category totals + dropdowns ------------------------------
-    st.subheader("Category Totals")
+    # If image_cache is empty, rebuild it
+    if not image_cache:
+        for r in results:
+            name = r["name"]
+            if name not in image_cache:
+                image_cache[name] = get_card_image(name)
+        st.session_state.image_cache = image_cache
 
     # build category mapping: category -> cards
     category_map = {}
@@ -98,31 +146,27 @@ if results:
             if tag not in category_map:
                 category_map[tag] = []
             category_map[tag].append(r)
-    
+
     # untagged category
     untagged_cards = [r for r in results if not r["tags"]]
-
     if untagged_cards:
         category_map["Untagged"] = untagged_cards
 
-    # display
     all_categories = sorted(list({tag for r in results for tag in r["tags"]}))
-    for cat, cards in sorted(category_map.items()):
 
-        # header with count
+    st.subheader("Category Totals")
+
+    
+    for idx, (cat, cards) in enumerate(sorted(category_map.items())):
         with st.expander(f"{cat} ({len(cards)})"):
 
-            for r in cards:
+            for r in sorted(cards, key=lambda x: x["name"]):
                 col1, col2 = st.columns([1, 3])
 
                 with col1:
-                    try:
-                        # fetch card image from Scryfall
-                        img = get_card_image(r["name"])
-                        if img:
-                            st.image(img)
-                    except:
-                        st.write("No image")
+                    img = image_cache.get(r["name"])
+                    if img:
+                        st.image(img)
 
                 with col2:
                     st.write(f"**{r['name']}**")
@@ -143,7 +187,7 @@ if results:
                             st.success(f"Saved correction for {r['name']}")
                         except Exception as e:
                             st.error(f"Error: {e}")
-
+    
     # retrain ------------------------------
     st.subheader("Retrain Model")
 

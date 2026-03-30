@@ -6,11 +6,36 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.multiclass import OneVsRestClassifier
 from sklearn.pipeline import Pipeline
 from pathlib import Path
-from ai.corrections import load_corrections
+from ml.corrections import load_corrections
 import sys
 from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
+
+def clean_tags(x):
+    if isinstance(x, list):
+        tags = x
+    elif isinstance(x, str):
+        tags = [t.strip() for t in x.split(",") if t.strip()]
+    else:
+        return []
+    
+    cleaned = []
+    for tag in tags:
+        if isinstance(tag, str):
+
+            tag = tag.replace("[", "").replace("]", "").replace("'", "").replace('"', "")
+            tag = tag.strip()
+            
+            if not tag:
+                continue
+                
+            cleaned.append(tag)
+    
+    seen = set()
+    cleaned = [x for x in cleaned if not (x in seen or seen.add(x))]
+    
+    return cleaned
 
 def train_model(csv_path=None, save_path=None):
     base_dir = Path(__file__).parent
@@ -38,13 +63,6 @@ def train_model(csv_path=None, save_path=None):
     else:
         df["combined"] = df["oracle_text"] + " " + df["type_line"]
 
-    def clean_tags(x):
-        if isinstance(x, list):
-            return x
-        if isinstance(x, str):
-            return [t.strip() for t in x.split(",") if t.strip()]
-        return []
-
     df["tags"] = df["tags"].apply(clean_tags)
     df = df[df["tags"].map(len) > 0]
 
@@ -60,7 +78,7 @@ def train_model(csv_path=None, save_path=None):
 
     pipeline.fit(df["combined"], y)
 
-    # ✅ optional save to disk
+    # optional save to disk
     if save_path:
         joblib.dump((pipeline, mlb), save_path)
 
