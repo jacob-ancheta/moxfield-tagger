@@ -7,6 +7,7 @@ import io
 import joblib
 from pathlib import Path
 import requests
+import time
 
 BASE_DIR = Path(__file__).resolve().parent
 DEFAULT_MODEL_PATH = BASE_DIR / "ml" / "ml_model.pkl"
@@ -21,11 +22,16 @@ def get_card_image(name):
         )
         data = res.json()
 
+        if "object" in data and data["object"] == "error":
+            print(f"ERROR for {name}: {data}")
+            return None
+
         if "image_uris" in data:
             return data["image_uris"]["small"]
         elif "card_faces" in data:
             return data["card_faces"][0]["image_uris"]["small"]
-    except:
+
+    except Exception as e:
         return None
 
 if "model" not in st.session_state:
@@ -114,6 +120,7 @@ if st.session_state.loading:
                     name = r["name"]
                     if name not in image_cache:
                         image_cache[name] = get_card_image(name)
+                        time.sleep(0.1)  #  delay to avoid hitting API rate limits
                 st.session_state.image_cache = image_cache
             st.session_state.rendering_complete = True
     
