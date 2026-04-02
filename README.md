@@ -2,7 +2,7 @@
 
 An app that helps you categorize and analyze Moxfield decks based on their composition.
 
-![Adobe Express - Desktop 2026 04 02 - 18 22 54 03 (online-video-cutter com)](https://github.com/user-attachments/assets/fc481c21-cc4a-4ac4-b73e-e227f729b47b)
+![ezgif-84813d49a15f19b1](https://github.com/user-attachments/assets/e41ac651-4050-465a-bd96-181cdd8469b3)
 
 
 Built mainly for EDH decks, but it works with any Moxfield list.
